@@ -29,9 +29,9 @@ env/
 .cms-log/
 *.log
 
-# Data
-.cms-data/
-*.db
+# Reports (keep example)
+reports/*
+!reports/example_report.md
 
 # IDE
 .vscode/

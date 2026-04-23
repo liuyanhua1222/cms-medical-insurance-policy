@@ -200,6 +200,72 @@ class TestSearchPolicy(unittest.TestCase):
         # 验证药品目录
         self.assertEqual(policy_info["drugs_and_treatment"]["drug_list"], "参保地目录")
         self.assertEqual(policy_info["drugs_and_treatment"]["treatment_scope"], "医保范围内")
+    
+    def test_generate_report(self):
+        """测试报告生成"""
+        from search_policy import generate_report
+        
+        # 准备测试数据
+        policies = [
+            {
+                "policy_name": "北京市异地就医直接结算管理办法",
+                "release_date": "2025-01-15",
+                "region": "北京",
+                "source": "http://ybj.beijing.gov.cn/policy/123.html",
+                "source_type": "地方医保局",
+                "outpatient": {
+                    "available": True,
+                    "reimbursement_rate": "50%"
+                },
+                "inpatient": {
+                    "available": True,
+                    "reimbursement_rate": "70%"
+                },
+                "reimbursement_limit": {
+                    "annual_limit": "100000",
+                    "single_limit": "20000"
+                },
+                "community_health": True,
+                "filing_process": {
+                    "methods": ["线上", "线下"],
+                    "materials": ["身份证", "医保卡"],
+                    "validity": "1年"
+                },
+                "special_groups": {
+                    "retirees": True,
+                    "workers": True,
+                    "emergency": True,
+                    "chronic_patients": True
+                },
+                "direct_settlement": {
+                    "scope": "定点医疗机构",
+                    "steps": ["备案", "就医", "结算"],
+                    "reimbursement_requirements": ["发票", "费用明细"]
+                },
+                "drugs_and_treatment": {
+                    "drug_list": "参保地目录",
+                    "treatment_scope": "医保范围内"
+                },
+                "notes": "具体以当地最新政策为准"
+            }
+        ]
+        
+        # 生成报告
+        report = generate_report(policies)
+        
+        # 验证报告内容
+        self.assertIn("# 异地就医备案政策查询报告", report)
+        self.assertIn("北京市异地就医直接结算管理办法", report)
+        self.assertIn("**地区**: 北京", report)
+        self.assertIn("**报销比例**: 50%", report)
+        self.assertIn("**报销比例**: 70%", report)
+        self.assertIn("**年度限额**: 100,000 元", report)
+        self.assertIn("**单次限额**: 20,000 元", report)
+        self.assertIn("**备案方式**: 线上, 线下", report)
+        self.assertIn("✅ 退休人员", report)
+        self.assertIn("**结算范围**: 定点医疗机构", report)
+        self.assertIn("**药品目录**: 参保地目录", report)
+        self.assertIn("免责声明", report)
 
 
 if __name__ == '__main__':

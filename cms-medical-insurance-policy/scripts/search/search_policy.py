@@ -21,8 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
-# 导入数据库和数据源模块
-from database import init_db, save_policy, query_policies, get_policy_by_url, get_statistics
+# 导入数据源模块
 from data_sources import get_source_type, is_official_url, get_region_from_url
 
 # 配置日志
@@ -435,16 +434,8 @@ def extract_policy_info_with_playwright(url):
     return None
 
 
-def get_official_policy(region=None, policy_type=None, keyword=None, time_range=None, use_cache=True):
-    """获取官方政策信息"""
-    # 如果启用缓存，先从数据库查询
-    if use_cache:
-        logger.info("尝试从数据库查询缓存数据...")
-        cached_policies = query_policies(region=region, policy_type=policy_type, limit=10)
-        if cached_policies:
-            logger.info(f"从数据库找到 {len(cached_policies)} 条缓存数据")
-            return cached_policies
-    
+def get_official_policy(region=None, policy_type=None, keyword=None, time_range=None):
+    """获取官方政策信息（直接搜索，无缓存）"""
     # 构建搜索查询
     query = build_search_query(region, policy_type, keyword, time_range)
     logger.info(f"搜索查询: {query}")
@@ -461,27 +452,12 @@ def get_official_policy(region=None, policy_type=None, keyword=None, time_range=
     for result in search_results:
         logger.info(f"处理: {result['title']}")
         
-        # 检查是否已在数据库中
-        if use_cache:
-            cached = get_policy_by_url(result['url'])
-            if cached:
-                logger.info(f"从数据库获取缓存: {result['title']}")
-                policies.append(cached)
-                continue
-        
         # 提取新政策信息
         policy_info = extract_policy_info_with_playwright(result['url'])
         if policy_info:
             # 设置地区信息
             if region and not policy_info.get("region"):
                 policy_info["region"] = region
-            
-            # 保存到数据库
-            try:
-                policy_id, is_new = save_policy(policy_info)
-                logger.info(f"{'新增' if is_new else '更新'}政策到数据库 (ID: {policy_id})")
-            except Exception as e:
-                logger.error(f"保存政策到数据库失败: {e}")
             
             policies.append(policy_info)
     
@@ -493,6 +469,208 @@ def get_official_policy(region=None, policy_type=None, keyword=None, time_range=
     return policies
 
 
+def generate_report(policies, output_file=None):
+    """生成政策查询报告（Markdown格式，包含汇总表）"""
+    if not policies:
+        return "# 异地就医备案政策查询报告\n\n未找到相关政策信息。\n"
+    
+    report_lines = [
+        "# 异地就医备案政策查询报告",
+        "",
+        f"**生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"**政策数量**: {len(policies)} 条",
+        "",
+        "---",
+        "",
+        "## 📊 政策汇总对比表",
+        "",
+        "| 地区 | 政策名称 | 门诊报销 | 住院报销 | 年度限额 | 社康 | 备案方式 | 来源类型 |",
+        "|---|---|---|---|---|---|---|---|"
+    ]
+    
+    # 添加汇总表数据
+    for policy in policies:
+        region = policy.get('region', '未指定')
+        name = policy.get('policy_name', '未知政策')[:30] + ('...' if len(policy.get('policy_name', '')) > 30 else '')
+        
+        outpatient = policy.get('outpatient', {})
+        outpatient_rate = outpatient.get('reimbursement_rate', '-') if outpatient.get('available') else '❌'
+        
+        inpatient = policy.get('inpatient', {})
+        inpatient_rate = inpatient.get('reimbursement_rate', '-') if inpatient.get('available') else '❌'
+        
+        limit = policy.get('reimbursement_limit', {})
+        annual_limit = f"{int(limit['annual_limit']):,}元" if limit.get('annual_limit') else '-'
+        
+        community = '✅' if policy.get('community_health') else '❌'
+        
+        filing = policy.get('filing_process', {})
+        methods = '/'.join(filing.get('methods', [])) if filing.get('methods') else '-'
+        
+        source_type = policy.get('source_type', '未知')
+        
+        report_lines.append(
+            f"| {region} | {name} | {outpatient_rate} | {inpatient_rate} | {annual_limit} | {community} | {methods} | {source_type} |"
+        )
+    
+    report_lines.extend([
+        "",
+        "---",
+        ""
+    ])
+    
+    for idx, policy in enumerate(policies, 1):
+        report_lines.extend([
+            f"## {idx}. {policy.get('policy_name', '未知政策')}",
+            "",
+            "### 基本信息",
+            "",
+            f"- **地区**: {policy.get('region', '未指定')}",
+            f"- **发布日期**: {policy.get('release_date', '未知')}",
+            f"- **来源类型**: {policy.get('source_type', '未知')}",
+            f"- **来源链接**: [{policy.get('source', '未知')}]({policy.get('source', '#')})",
+            ""
+        ])
+        
+        # 门诊信息
+        outpatient = policy.get('outpatient', {})
+        if outpatient.get('available'):
+            report_lines.extend([
+                "### 门诊使用",
+                "",
+                f"- **是否可用**: ✅ 是",
+                f"- **报销比例**: {outpatient.get('reimbursement_rate', '未说明')}",
+                ""
+            ])
+        
+        # 住院信息
+        inpatient = policy.get('inpatient', {})
+        if inpatient.get('available'):
+            report_lines.extend([
+                "### 住院使用",
+                "",
+                f"- **是否可用**: ✅ 是",
+                f"- **报销比例**: {inpatient.get('reimbursement_rate', '未说明')}",
+                ""
+            ])
+        
+        # 报销额度
+        limit = policy.get('reimbursement_limit', {})
+        if limit.get('annual_limit') or limit.get('single_limit'):
+            report_lines.extend([
+                "### 报销额度",
+                ""
+            ])
+            if limit.get('annual_limit'):
+                report_lines.append(f"- **年度限额**: {int(limit['annual_limit']):,} 元")
+            if limit.get('single_limit'):
+                report_lines.append(f"- **单次限额**: {int(limit['single_limit']):,} 元")
+            report_lines.append("")
+        
+        # 社康使用
+        if policy.get('community_health'):
+            report_lines.extend([
+                "### 社区医疗",
+                "",
+                "- **社康使用**: ✅ 可使用",
+                ""
+            ])
+        
+        # 备案流程
+        filing = policy.get('filing_process', {})
+        if filing.get('methods') or filing.get('materials'):
+            report_lines.extend([
+                "### 备案流程",
+                ""
+            ])
+            if filing.get('methods'):
+                report_lines.append(f"- **备案方式**: {', '.join(filing['methods'])}")
+            if filing.get('materials'):
+                report_lines.append(f"- **所需材料**: {', '.join(filing['materials'])}")
+            if filing.get('validity'):
+                report_lines.append(f"- **有效期**: {filing['validity']}")
+            report_lines.append("")
+        
+        # 特殊人群
+        special = policy.get('special_groups', {})
+        if any(special.values()):
+            report_lines.extend([
+                "### 特殊人群政策",
+                ""
+            ])
+            if special.get('retirees'):
+                report_lines.append("- ✅ 退休人员")
+            if special.get('workers'):
+                report_lines.append("- ✅ 在职职工")
+            if special.get('emergency'):
+                report_lines.append("- ✅ 急诊患者")
+            if special.get('chronic_patients'):
+                report_lines.append("- ✅ 慢性病患者")
+            report_lines.append("")
+        
+        # 直接结算
+        settlement = policy.get('direct_settlement', {})
+        if settlement.get('scope') or settlement.get('steps'):
+            report_lines.extend([
+                "### 直接结算",
+                ""
+            ])
+            if settlement.get('scope'):
+                report_lines.append(f"- **结算范围**: {settlement['scope']}")
+            if settlement.get('steps'):
+                report_lines.append(f"- **结算步骤**: {' → '.join(settlement['steps'])}")
+            if settlement.get('reimbursement_requirements'):
+                report_lines.append(f"- **报销要求**: {', '.join(settlement['reimbursement_requirements'])}")
+            report_lines.append("")
+        
+        # 药品与诊疗
+        drugs = policy.get('drugs_and_treatment', {})
+        if drugs.get('drug_list') or drugs.get('treatment_scope'):
+            report_lines.extend([
+                "### 药品与诊疗",
+                ""
+            ])
+            if drugs.get('drug_list'):
+                report_lines.append(f"- **药品目录**: {drugs['drug_list']}")
+            if drugs.get('treatment_scope'):
+                report_lines.append(f"- **诊疗范围**: {drugs['treatment_scope']}")
+            report_lines.append("")
+        
+        # 备注
+        if policy.get('notes'):
+            report_lines.extend([
+                "### 备注",
+                "",
+                f"> {policy['notes']}",
+                ""
+            ])
+        
+        report_lines.extend([
+            "---",
+            ""
+        ])
+    
+    # 添加页脚
+    report_lines.extend([
+        "",
+        "---",
+        "",
+        "**免责声明**: 本报告内容仅供参考，具体政策以当地医保部门最新公布为准。",
+        ""
+    ])
+    
+    report_content = "\n".join(report_lines)
+    
+    # 如果指定了输出文件，保存到文件
+    if output_file:
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(report_content, encoding='utf-8')
+        logger.info(f"报告已保存到: {output_file}")
+    
+    return report_content
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="查询异地就医备案政策")
@@ -500,41 +678,34 @@ def main():
     parser.add_argument('--policy_type', type=str, help='政策类型，如门诊、住院、报销额度等')
     parser.add_argument('--keyword', type=str, help='搜索关键词')
     parser.add_argument('--time_range', type=str, help='时间范围，如近1年、近2年')
-    parser.add_argument('--no-cache', action='store_true', help='不使用缓存，强制重新抓取')
-    parser.add_argument('--stats', action='store_true', help='显示数据库统计信息')
+    parser.add_argument('--report', type=str, help='生成报告并保存到指定文件（Markdown格式）')
     
     args = parser.parse_args()
     
-    # 初始化数据库
-    init_db()
-    
     try:
-        # 显示统计信息
-        if args.stats:
-            stats = get_statistics()
-            print(json.dumps({
-                "status": "success",
-                "statistics": stats
-            }, ensure_ascii=False, indent=2))
-            return
-        
         # 获取官方政策信息
-        use_cache = not args.no_cache
         policies = get_official_policy(
             region=args.region,
             policy_type=args.policy_type,
             keyword=args.keyword,
-            time_range=args.time_range,
-            use_cache=use_cache
+            time_range=args.time_range
         )
+        
+        # 生成报告（如果指定了报告文件）
+        if args.report:
+            report_content = generate_report(policies, args.report)
+            logger.info(f"报告已生成: {args.report}")
         
         # 输出结果
         output = {
             "status": "success",
             "data": policies,
-            "count": len(policies),
-            "from_cache": use_cache and len(policies) > 0
+            "count": len(policies)
         }
+        
+        if args.report:
+            output["report_file"] = args.report
+        
         print(json.dumps(output, ensure_ascii=False, indent=2))
         
     except Exception as e:

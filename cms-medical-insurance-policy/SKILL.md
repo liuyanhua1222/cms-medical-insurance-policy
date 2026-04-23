@@ -25,18 +25,16 @@ github: https://github.com/liuyanhua/cms-medical-insurance-policy
 **依赖要求**：
 - Python 3.8+
 - playwright（自动安装浏览器驱动）
-- sqlalchemy（可选，用于缓存）
 
 **安装依赖**：
 ```bash
-pip install playwright sqlalchemy
+pip install playwright
 playwright install chromium
 ```
 
 **运行环境**：
 - 鉴权模式：`nologin`（直接访问公开的官方网站）
 - 运行日志：`.cms-log/`（自动创建）
-- 数据存储：`.cms-data/`（可选，自动创建）
 
 **OpenClaw Agent 使用流程**：
 1. 理解用户查询意图（地区、政策类型、关键词）
@@ -49,8 +47,7 @@ playwright install chromium
 - `--policy_type <类型>`: 政策类型（如：门诊、住院）
 - `--keyword <关键词>`: 搜索关键词（如：报销比例、备案流程）
 - `--time_range <范围>`: 时间范围（如：近1年、近2年）
-- `--no-cache`: 强制重新抓取，不使用缓存
-- `--stats`: 查看数据库统计信息
+- `--report <文件路径>`: 生成 Markdown 格式报告
 
 模块路由与能力索引：
 | 用户意图 | 模块 | 能力摘要 | 模块说明 | 脚本 |
@@ -71,7 +68,6 @@ cms-medical-insurance-policy/
 ├── scripts/
 │   └── search/
 │       ├── search_policy.py          # 核心脚本（Agent 调用）
-│       ├── database.py               # 数据库管理（自动保存）
 │       └── data_sources.py           # 数据源配置（动态搜索）
 └── tests/
     └── test_search_policy.py         # 单元测试
