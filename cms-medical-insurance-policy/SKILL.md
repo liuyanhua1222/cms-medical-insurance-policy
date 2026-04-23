@@ -2,7 +2,7 @@
 name: cms-medical-insurance-policy
 description: 查询各地异地就医备案政策，提供门诊、住院、报销额度等关键信息。通过搜索引擎动态发现官方政策，不限于预定义数据源。
 skillcode: cms-medical-insurance-policy
-github: https://github.com/liuyanhua/cms-medical-insurance-policy
+github: https://github.com/liuyanhua1222/cms-medical-insurance-policy
 ---
 
 # cms-medical-insurance-policy — 索引
