@@ -1,65 +1,163 @@
-# search 模块说明
+# search 模块 - AI提示词模板
 
-## 适用场景
+## 概述
 
-本模块用于查询全国各地的异地就医备案政策，重点关注以下场景：
+本模块使用AI提示词直接生成异地就医备案政策解读，无需爬虫或外部API调用。
 
-- 用户需要了解异地就医备案的基本流程和要求
-- 用户需要查询特定地区的异地就医备案政策
-- 用户需要了解异地就医的门诊、住院、报销额度、社康使用等关键信息
-- 用户需要获取最新的异地就医备案政策变化
+---
 
-## 输入要求
+## 提示词模板库
 
-| 参数名 | 类型 | 必填 | 说明 | 示例 |
-|---|---|---|---|---|
-| `region` | string | 否 | 地区名称，如省份、城市 | 北京、上海、广东 |
-| `policy_type` | string | 否 | 政策类型，如门诊、住院、报销额度等 | 门诊、住院、报销额度 |
-| `keyword` | string | 否 | 搜索关键词 | 异地就医备案、直接结算 |
-| `time_range` | string | 否 | 时间范围，如近1年、近2年 | 近1年、近2年 |
+### 模板1：地区政策查询
 
-## 输出说明
-
-| 字段名 | 类型 | 说明 | 示例 |
-|---|---|---|---|
-| `policy_name` | string | 政策名称 | 关于做好异地就医直接结算工作的通知 |
-| `release_date` | string | 发布日期 | 2025-01-01 |
-| `region` | string | 适用地区 | 全国、北京市 |
-| `outpatient` | object | 门诊使用情况 | `{"available": true, "reimbursement_rate": "50%"}` |
-| `inpatient` | object | 住院使用情况 | `{"available": true, "reimbursement_rate": "70%"}` |
-| `reimbursement_limit` | object | 报销额度限制 | `{"annual_limit": "100000", "single_limit": "20000"}` |
-| `community_health` | boolean | 社康使用情况 | true |
-| `filing_process` | object | 备案流程与操作细节 | `{"methods": ["线上", "线下"], "materials": ["身份证", "医保卡"], "validity": "1年", "change_process": "线上申请"}` |
-| `special_groups` | object | 特殊人群政策 | `{"retirees": true, "workers": true, "emergency": true, "chronic_patients": true}` |
-| `direct_settlement` | object | 直接结算与报销流程 | `{"scope": "定点医疗机构", "steps": ["备案", "就医", "直接结算"], "reimbursement_requirements": ["发票", "费用明细"]}` |
-| `drugs_and_treatment` | object | 药品与诊疗项目 | `{"drug_list": "参保地目录", "treatment_scope": "医保范围内", "consumables_reimbursement": "50%"}` |
-| `policy_timeliness` | object | 政策时效性与地区差异 | `{"latest_adjustment": "2025-01-01", "cross_regional_differences": "存在", "transition_period": "3个月"}` |
-| `common_issues` | object | 常见问题与风险提示 | `{"filing_failure_reasons": ["材料不全", "信息错误"], "unfiled_treatment": "报销比例降低", "duplicate_insurance": "选择一地参保"}` |
-| `source` | string | 政策来源 | https://www.nhsa.gov.cn/ |
-| `notes` | string | 备注 | 具体以当地最新政策为准 |
-
-## 动作列表
-
-| 动作 | 说明 | 脚本路径 |
-|---|---|---|
-| 搜索异地就医备案政策 | 查询各地异地就医备案政策信息 | `./scripts/search/search_policy.py` |
-| 生成政策报告 | 将查询结果生成为 Markdown 格式报告 | `./scripts/search/search_policy.py --report <文件路径>` |
-
-## 报告生成
-
-查询完成后可以生成易读的 Markdown 报告，包含：
-
-- 政策基本信息（名称、地区、发布日期、来源）
-- 门诊使用情况（是否可用、报销比例）
-- 住院使用情况（是否可用、报销比例）
-- 报销额度（年度限额、单次限额）
-- 社区医疗使用情况
-- 备案流程（方式、材料、有效期）
-- 特殊人群政策（退休、在职、急诊、慢病）
-- 直接结算（范围、步骤、要求）
-- 药品与诊疗（目录、范围）
-
-**使用示例**：
-```bash
-python scripts/search/search_policy.py --region 北京 --report reports/beijing.md
 ```
+你是一位专业的医保政策顾问。请为用户查询{地区}异地就医备案政策信息。
+
+【查询地区】：{region}
+【查询类型】：{policy_type}
+【用户问题】：{user_question}
+
+请按以下JSON格式输出：
+{
+  "policy_name": "政策名称",
+  "region": "地区",
+  "outpatient": {"available": true/false, "reimbursement_rate": "XX%"},
+  "inpatient": {"available": true/false, "reimbursement_rate": "XX%"},
+  "reimbursement_limit": {"annual_limit": "XX元", "single_limit": "XX元"},
+  "community_health": true/false,
+  "filing_process": {
+    "methods": ["线上", "线下"],
+    "materials": ["材料列表"],
+    "validity": "有效期"
+  },
+  "special_groups": {
+    "retirees": true/false,
+    "workers": true/false,
+    "emergency": true/false,
+    "chronic_patients": true/false
+  },
+  "direct_settlement": {
+    "scope": "范围",
+    "steps": ["步骤"],
+    "reimbursement_requirements": ["要求"]
+  },
+  "notes": "注意事项"
+}
+```
+
+### 模板2：流程说明
+
+```
+请介绍异地就医备案的标准流程：
+
+1. **备案申请**
+   - 线上：国家医保服务平台APP、微信/支付宝小程序
+   - 线下：参保地医保经办机构
+
+2. **所需材料**
+   - 身份证/社保卡
+   - 居住证/户籍证明（长期居住人员）
+   - 转诊证明（转诊人员）
+
+3. **备案生效**
+   - 线上即时生效
+   - 线下2-3个工作日
+
+4. **就医结算**
+   - 持医保卡在定点医疗机构就医
+   - 直接结算，只需支付自付部分
+```
+
+### 模板3：报销政策对比
+
+```
+请对比说明异地就医与本地就医的报销差异：
+
+| 项目 | 异地就医 | 本地就医 |
+|------|---------|---------|
+| 报销比例 | 略低（下降XX%） | 标准比例 |
+| 药品目录 | 参保地目录 | 就医地目录 |
+| 起付线 | 按参保地标准 | 按就医地标准 |
+| 结算方式 | 可直结/先垫付后报销 | 直接结算 |
+
+注意：具体比例因地区而异，建议咨询当地医保部门。
+```
+
+---
+
+## 常用场景提示词
+
+### 场景1：首次备案
+```
+用户想了解：第一次办理异地就医备案，需要准备什么？
+
+回复要点：
+- 备案条件判断
+- 线上备案步骤（国家医保服务平台APP）
+- 所需材料清单
+- 注意事项
+```
+
+### 场景2：报销比例
+```
+用户想了解：异地就医的报销比例是多少？
+
+回复要点：
+- 全国平均水平（55%-70%）
+- 与参保地差异说明
+- 医院级别影响
+- 如何查询当地具体比例
+```
+
+### 场景3：备案变更
+```
+用户想了解：备案到期或需要更换就医地怎么办？
+
+回复要点：
+- 重新备案流程
+- 取消原备案方法
+- 变更注意事项
+```
+
+### 场景4：急诊情况
+```
+用户想了解：突发疾病在外地就医，没来得及备案怎么办？
+
+回复要点：
+- 可先就医后补备案
+- 需在规定时间内完成备案
+- 保留好就医凭证
+- 急诊认定标准
+```
+
+---
+
+## 地区政策速查
+
+### 一线城市
+
+| 地区 | 门诊直结 | 住院直结 | 备案方式 |
+|------|---------|---------|----------|
+| 北京 | ✅ | ✅ | 线上+线下 |
+| 上海 | ✅ | ✅ | 线上+线下 |
+| 广州 | ✅ | ✅ | 线上+线下 |
+| 深圳 | ✅ | ✅ | 线上+线下 |
+
+### 主要省会城市
+
+| 地区 | 门诊直结 | 住院直结 | 备案有效期 |
+|------|---------|---------|-----------|
+| 成都 | ✅ | ✅ | 1年 |
+| 杭州 | ✅ | ✅ | 1年 |
+| 南京 | ✅ | ✅ | 1年 |
+| 武汉 | ✅ | ✅ | 1年 |
+| 西安 | ✅ | ✅ | 1年 |
+
+---
+
+## 注意事项
+
+1. 回答时标注信息来源渠道
+2. 注明"具体以当地最新政策为准"
+3. 涉及金额的建议用户提供具体地区
+4. 复杂情况建议咨询12333
